@@ -19,7 +19,7 @@ import cobra.model.ctrlr
 import cobra.model.fabric
 import cobra.model.fabric
 import cobra.model.infra
-
+import cobra.model.aaa
 from cobra.internal.codec.xmlcodec import toXMLStr
 import argparse
 import logging
@@ -231,7 +231,8 @@ def add_ipg(cfg,logfh):
     polUni = cobra.model.pol.Uni('')
     infraInfra = cobra.model.infra.Infra(polUni)
     infraFuncP = cobra.model.infra.FuncP(infraInfra)
-    
+    infraaaRbacEp = cobra.model.aaa.RbacEp(polUni)
+
     portspeed = "10G"
 
    
@@ -309,9 +310,12 @@ def add_ipg(cfg,logfh):
                 infraPortBlk['infraPortBlk'] = "infraPortBlk"+str(port)
                 infraPortBlk['infraPortBlk'] = cobra.model.infra.PortBlk(infraHPortS['infraHPortS'], name='1'+'-'+str(port), descr='', fromPort=str(port), fromCard='1', toPort=str(port), toCard='1')
 
+                #RBAC
+                aaRbacEp = {}
+                aaRbacEp['aaRbacEp'] = "aaRbacEp"+str(port)
+                aaRbacEp['aaRbacEp'] = cobra.model.aaa.RbacRule(infraaaRbacEp, domain="all", name='', descr='', ownerKey='', objectDn=f"uni/infra/funcprof/accbundle-{accbndlgrp}", ownerTag='', allowWrites='yes')
 
                 logger.info('Access-Port-Selector: ' + 'SCALEOUT_'+node_id+'_port1_'+str(port)+'_APS'+' added')
-
                 port = port+1
                 # commit the generated code to APIC
     c = cobra.mit.request.ConfigRequest()
@@ -319,6 +323,14 @@ def add_ipg(cfg,logfh):
     try:
         md.commit(c)
         logger.info('IPG: ' + 'VPC objects applied')
+    except Exception as x:
+        logger.warn( x )
+
+    c = cobra.mit.request.ConfigRequest()
+    c.addMo(infraaaRbacEp)
+    try:
+        md.commit(c)
+        logger.info('IPG: ' + 'RBAC applied')
     except Exception as x:
         logger.warn( x )
 
@@ -402,6 +414,11 @@ def add_ipg(cfg,logfh):
                 infraPortBlk['infraPortBlk'] = "infraPortBlk"+str(port)+str(port)
                 infraPortBlk['infraPortBlk'] = cobra.model.infra.PortBlk(infraHPortS['infraHPortS'], name='1'+'-'+str(port), descr='', fromPort=str(port), fromCard='1', toPort=str(port), toCard='1')
 
+                #RBAC
+                aaRbacEp = {}
+                aaRbacEp['aaRbacEp'] = "aaRbacEp"+str(port)
+                aaRbacEp['aaRbacEp'] = cobra.model.aaa.RbacRule(infraaaRbacEp, domain="all", name='', descr='', ownerKey='', objectDn=f"uni/infra/funcprof/accportgrp-{ipgname}", ownerTag='', allowWrites='yes')
+
                 logger.info('IPG: '+ipgname+' prepared')
                 logger.info('Access-Port-Selector: ' + 'SCALEOUT_'+node_id+'_port1_'+str(port)+'_APS'+' prepared')
                 logger.info('Access-Port-Selector: ' + 'SCALEOUT_'+str(node_id2)+'_port1_'+str(port)+'_APS'+' prepared')
@@ -416,7 +433,13 @@ def add_ipg(cfg,logfh):
     except Exception as x:
         logger.warn( x )
                 
-                    
+    c = cobra.mit.request.ConfigRequest()
+    c.addMo(infraaaRbacEp)
+    try:
+        md.commit(c)
+        logger.info('IPG_P: ' + 'RBAC applied')
+    except Exception as x:
+        logger.warn( x )              
          
 def delete_ipg(cfg,logfh):
      logger = logging.getLogger('ipg')
@@ -429,9 +452,9 @@ def delete_ipg(cfg,logfh):
      md.login()
      
      infraAccBndlGrp = md.lookupByClass("infraAccBndlGrp", parentDn='uni', propFilter='and(wcard(infraAccBndlGrp.name, "SCALEOUT"))')
+     c = cobra.mit.request.ConfigRequest()
      for e in infraAccBndlGrp:
         e.delete()        
-        c = cobra.mit.request.ConfigRequest()
         c.addMo(e)
         logger.info('IPG: ' + e.name + ' prepared for deletion')
      try:
@@ -439,42 +462,54 @@ def delete_ipg(cfg,logfh):
         logger.info('VPC IPGs has been deleted')
      except Exception as e:
         logger.warn( e )
-        
+
+     aaaRbacRule = md.lookupByClass("aaaRbacRule", parentDn='uni', propFilter='and(wcard(aaaRbacRule.dn, "SCALEOUT"))')   
+     c = cobra.mit.request.ConfigRequest()
+     for e in aaaRbacRule:
+        e.delete()        
+        c.addMo(e)
+        logger.info('IPG: ' + e.name + 'RBAC prepared for deletion')
+     try:
+         md.commit(c)
+         logger.info('RBAC IPGs has been deleted')
+     except Exception as e:
+         logger.warn( e )
+
 
      infraAccPortGrp = md.lookupByClass("infraAccPortGrp", parentDn='uni', propFilter='and(wcard(infraAccPortGrp.name, "SCALEOUT"))')
+     c = cobra.mit.request.ConfigRequest()
      for e in infraAccPortGrp:
         e.delete()        
-        c = cobra.mit.request.ConfigRequest()
         c.addMo(e)
         logger.info('IPG: ' + e.name + ' prepared for deletion')
      try:
         md.commit(c)
-        logger.info('P IPG: ' + e.name + ' deleted')
+        logger.info('P IPGs:deleted')
      except Exception as e:
         logger.warn( e )
         
      infraHPortS = md.lookupByClass("infraHPortS", parentDn='uni', propFilter='and(wcard(infraHPortS.name, "SCALEOUT"))')
+     c = cobra.mit.request.ConfigRequest()
      for e in infraHPortS:
         e.delete()        
-        c = cobra.mit.request.ConfigRequest()
         c.addMo(e)
      try:
          md.commit(c)
-         logger.info('Access-Port-Selector: ' + e.name + ' deleted')
+         logger.info('Access-Port-Selector: deleted')
      except Exception as e:
          logger.warn( e )
          
      infraAttEntityP = md.lookupByClass("infraAttEntityP", parentDn='uni', propFilter='and(wcard(infraAttEntityP.name, "SCALEOUT"))')
+     c = cobra.mit.request.ConfigRequest()
      for e in infraAttEntityP:
         e.delete()        
-        c = cobra.mit.request.ConfigRequest()
         c.addMo(e)
-        try:
-            md.commit(c)
-            logger.info('AEP: ' + e.name + ' deleted')
-        except Exception as e:
-            logger.warn( e )
-            continue
+     try:
+         md.commit(c)
+         logger.info('AEP: ' + e.name + ' deleted')
+     except Exception as e:
+         logger.warn( e )
+         
 
 
 
@@ -640,7 +675,6 @@ def get_ipg(md,cluster):
     return response_list;
 
 def get_dom(md,ipg):
-
         aep = ""
         ipgMo = md.lookupByClass("infraAccBndlGrp", propFilter='and(eq(infraAccBndlGrp.name, "'+ipg+'"))')
 
